@@ -357,7 +357,7 @@ function insertEmploye(
 app.get("/administration", (req, res) => {
   const query = `
     SELECT 
-  a.id_admin, a.nom, a.prenom, a.age, date_naissance, a.sexe, a.date_e, a.telephone, a.mail, a.situation, 
+  a.id_admin, a.nom, a.prenom, a.date_naissance, a.sexe, a.date_e, a.telephone, a.mail, a.situation, 
   d.departement, d.poste, a.nombre_consultation, a.code_admin, a.profil, a.identite, a.diplome, niveau, 
   s.salaire_brute 
 FROM administration a
@@ -581,7 +581,6 @@ app.put(
     const {
       nom,
       prenom,
-      age,
       date_naissance,
       sexe,
       situation,
@@ -639,7 +638,6 @@ app.put(
                 poste,
                 nom,
                 prenom,
-                age,
                 date_naissance,
                 sexe,
                 situation,
@@ -666,7 +664,6 @@ app.put(
             poste,
             nom,
             prenom,
-            age,
             date_naissance,
             sexe,
             situation,
@@ -702,7 +699,6 @@ app.put(
           poste,
           nom,
           prenom,
-          age,
           date_naissance,
           sexe,
           situation,
@@ -729,7 +725,6 @@ function updateEmploye(
   poste,
   nom,
   prenom,
-  age,
   date_naissance,
   sexe,
   situation,
@@ -776,7 +771,6 @@ function updateEmploye(
             idDepartement,
             nom,
             prenom,
-            age,
             date_naissance,
             sexe,
             situation,
@@ -801,7 +795,6 @@ function updateEmploye(
         idDepartement,
         nom,
         prenom,
-        age,
         date_naissance,
         sexe,
         situation,
@@ -826,7 +819,6 @@ function updateEmployeInDb(
   idDepartement,
   nom,
   prenom,
-  age,
   date_naissance,
   sexe,
   situation,
@@ -840,119 +832,99 @@ function updateEmployeInDb(
   identite,
   res
 ) {
-  // 1. Récupérer l'ancien code_admin
-  const getOldCodeQuery = `SELECT code_admin FROM administration WHERE id_admin = ?`;
-
-  db.query(getOldCodeQuery, [id], (err, results) => {
+  // Hacher le code_admin avant de mettre à jour l'employé
+  bcrypt.hash(code_admin, 10, (err, hashedPassword) => {
     if (err) {
-      console.error("Erreur lors de la récupération du code_admin:", err);
+      console.error("Erreur lors du hachage du mot de passe:", err);
       return res.status(500).json({
-        message: "Erreur serveur lors de la récupération du code_admin",
+        message: "Erreur serveur lors du hachage du mot de passe",
         error: err,
       });
     }
 
-    const oldCodeAdmin = results[0]?.code_admin;
+    // Commencer une transaction
+    db.beginTransaction((err) => {
+      if (err) {
+        return res.status(500).json({
+          message: "Erreur lors de la création de la transaction",
+          error: err,
+        });
+      }
 
-    // Si le code_admin a changé, mettre à jour la table vente d'abord
-    if (oldCodeAdmin !== code_admin) {
-      // Mettre à jour le code_admin dans la table vente
-      const updateVenteQuery = `
-        UPDATE vente 
-        SET code_admin = ? 
-        WHERE code_admin = ?
+      const updateAdminQuery = `
+        UPDATE administration
+        SET nom = ?, prenom = ?, date_naissance = ?, sexe = ?, situation = ?, telephone = ?, mail = ?, 
+        id_departement = ?, code_admin = ?, diplome = ?, niveau = ?, date_e = ?, id_salaire = ?, profil = ?, identite = ?
+        WHERE id_admin = ?
       `;
-      db.query(updateVenteQuery, [code_admin, oldCodeAdmin], (err, result) => {
-        if (err) {
-          console.error("Erreur lors de la mise à jour de la vente:", err);
-          return res.status(500).json({
-            message: "Erreur serveur lors de la mise à jour des ventes",
-            error: err,
-          });
-        }
 
-        // Une fois la table vente mise à jour, procéder à la mise à jour dans la table administration
-        updateAdmin();
-      });
-    } else {
-      // Si le code_admin n'a pas changé, procéder directement à la mise à jour de la table administration
-      updateAdmin();
-    }
-  });
+      db.query(
+        updateAdminQuery,
+        [
+          nom,
+          prenom,
+          date_naissance,
+          sexe,
+          situation,
+          telephone,
+          mail,
+          idDepartement,
+          hashedPassword, // Utiliser le mot de passe haché
+          diplome,
+          niveau,
+          date_e,
+          idSalaire,
+          profil ? profil.path : null,
+          identite ? identite.path : null,
+          id,
+        ],
+        (err, results) => {
+          if (err) {
+            return db.rollback(() => {
+              res.status(500).json({
+                message: "Erreur lors de la mise à jour de l'administration",
+                error: err,
+              });
+            });
+          }
 
-  // Fonction pour mettre à jour l'administration
-  function updateAdmin() {
-    const updateQuery = `
-      UPDATE administration 
-      SET nom = ?, prenom = ?, age = ?, date_naissance = ?, sexe = ?, situation = ?, telephone = ?, mail = ?, 
-      id_departement = ?, code_admin = ?, diplome = ?, niveau = ?, date_e = ?, id_salaire = ?, profil = ?, identite = ?
-      WHERE id_admin = ?
-    `;
-
-    // Fonction pour hacher le code_admin si fourni
-    const hashCodeAdmin = (code) => {
-      return new Promise((resolve, reject) => {
-        if (code) {
-          bcrypt.hash(code, 10, (err, hashedCode) => {
-            if (err) {
-              reject(new Error("Erreur lors du hachage du code_admin"));
-            } else {
-              resolve(hashedCode);
-            }
-          });
-        } else {
-          resolve(null); // Aucun code_admin, pas de hachage
-        }
-      });
-    };
-
-    // Exécution de la mise à jour dans la table administration
-    hashCodeAdmin(code_admin)
-      .then((hashedCode) => {
-        return new Promise((resolve, reject) => {
+          const updateVenteQuery = `
+            UPDATE vente 
+            SET code_admin = ?
+            WHERE code_admin = ?
+          `;
           db.query(
-            updateQuery,
-            [
-              nom,
-              prenom,
-              age,
-              date_naissance,
-              sexe,
-              situation,
-              telephone,
-              mail,
-              idDepartement,
-              hashedCode || code_admin, // Utilise le code haché si fourni, sinon garde le code fourni
-              diplome,
-              niveau,
-              date_e,
-              idSalaire,
-              profil ? profil.path : null,
-              identite ? identite.path : null,
-              id,
-            ],
+            updateVenteQuery,
+            [hashedPassword, code_admin],
             (err, results) => {
               if (err) {
-                console.error("Erreur lors de la mise à jour de l'employé :", err);
-                reject(new Error("Erreur lors de la mise à jour de l'employé"));
-              } else {
-                resolve();
+                return db.rollback(() => {
+                  res.status(500).json({
+                    message: "Erreur lors de la mise à jour de la vente",
+                    error: err,
+                  });
+                });
               }
+
+              db.commit((err) => {
+                if (err) {
+                  return db.rollback(() => {
+                    res.status(500).json({
+                      message: "Erreur lors de la validation de la transaction",
+                      error: err,
+                    });
+                  });
+                }
+                res.status(200).json({
+                  message: "Employé et ventes mis à jour avec succès !",
+                });
+              });
             }
           );
-        });
-      })
-      .then(() => {
-        res.status(200).json({ message: "Employé et ventes mis à jour avec succès !" });
-      })
-      .catch((error) => {
-        console.error(error.message);
-        res.status(500).json({
-          message: "Erreur serveur",
-          error: error.message,
-        });
-      });
-  }
+        }
+      );
+    });
+  });
 }
 
 app.get("/historique-achat", (req, res) => {
@@ -1317,7 +1289,7 @@ app.post("/add", (req, res) => {
   });
 });
 
-function getPatientsByDepartement(departement, res) {
+function getPatientsByPoste(poste, res) {
   const sql = `
     SELECT 
   p.id_patient, 
@@ -1339,12 +1311,12 @@ JOIN
     JOIN 
       departements d ON a.id_departement = d.id_departement
     WHERE 
-      d.departement IN (?)
+      d.poste IN (?)
     GROUP BY 
       p.id_patient;
   `;
 
-  db.query(sql, [departement], (err, result) => {
+  db.query(sql, [poste], (err, result) => {
     if (err) {
       console.error("Erreur SQL :", err);
       return res.status(500).json({ message: "Erreur serveur" });
@@ -1357,23 +1329,23 @@ JOIN
 
 // Endpoints pour chaque département
 app.get("/dog", (req, res) => {
-  getPatientsByDepartement("Medecin généraliste", res);
+  getPatientsByPoste("Medecin généraliste", res);
 });
 
 app.get("/echo", (req, res) => {
-  getPatientsByDepartement("Échographiste", res);
+  getPatientsByPoste("Échographiste", res);
 });
 
 app.get("/sage", (req, res) => {
-  getPatientsByDepartement("Sage femme", res);
+  getPatientsByPoste("Sage femme", res);
 });
 
 app.get("/infirm/patient", (req, res) => {
-  getPatientsByDepartement(["Infirmier", "Interne/Garde"], res);
+  getPatientsByPoste(["Infirmier", "Interne/Garde"], res);
 });
 
 app.get("/interne/patient", (req, res) => {
-  getPatientsByDepartement(["Infirmier", "Interne/Garde"], res);
+  getPatientsByPoste(["Infirmier", "Interne/Garde"], res);
 });
 
 app.get("/admin", (req, res) => {
@@ -1555,7 +1527,7 @@ app.post("/add_consultation", (req, res) => {
   });
 });
 
-function getConsultationByDepartement(departement, res) {
+function getConsultationByPoste(poste, res) {
   const sql = `
     SELECT 
       c.* -- Sélectionne toutes les colonnes de la table consultation
@@ -1566,10 +1538,10 @@ function getConsultationByDepartement(departement, res) {
     JOIN 
       departements d ON a.id_departement = d.id_departement
     WHERE 
-      d.departement IN (?)
+      d.poste IN (?)
   `;
 
-  db.query(sql, [departement], (err, result) => {
+  db.query(sql, [poste], (err, result) => {
     if (err) {
       console.error("Erreur SQL :", err);
       return res.status(500).json({ message: "Erreur serveur" });
@@ -1587,19 +1559,19 @@ function getConsultationByDepartement(departement, res) {
 }
 
 app.get("/dog/arch", (req, res) => {
-  getConsultationByDepartement("Medecin généraliste", res);
+  getConsultationByPoste("Medecin généraliste", res);
 });
 
 app.get("/sage/arch", (req, res) => {
-  getConsultationByDepartement("Sage femme", res);
+  getConsultationByPoste("Sage femme", res);
 });
 
 app.get("/echo/arch", (req, res) => {
-  getConsultationByDepartement("Échographiste", res);
+  getConsultationByPoste("Échographiste", res);
 });
 
 app.get("/infirm/arch", (req, res) => {
-  getConsultationByDepartement(["Infirmier", "Interne/Garde"], res);
+  getConsultationByPoste(["Infirmier", "Interne/Garde"], res);
 });
 
 app.get("/admin/arch", (req, res) => {
@@ -1772,7 +1744,7 @@ app.put("/update_agenda/:id", (req, res) => {
   );
 });
 
-function getAgendaByDepartement(departement, res) {
+function getAgendaByPoste(poste, res) {
   const sql = `
     SELECT 
       a.* -- Sélectionne toutes les colonnes de la table consultation
@@ -1783,10 +1755,10 @@ function getAgendaByDepartement(departement, res) {
     JOIN 
       departements d ON b.id_departement = d.id_departement
     WHERE 
-      d.departement IN (?)
+      d.poste IN (?)
   `;
 
-  db.query(sql, [departement], (err, result) => {
+  db.query(sql, [poste], (err, result) => {
     if (err) {
       console.error("Erreur SQL :", err);
       return res.status(500).json({ message: "Erreur serveur" });
@@ -1804,23 +1776,23 @@ function getAgendaByDepartement(departement, res) {
 }
 
 app.get("/dog/agenda", (req, res) => {
-  getAgendaByDepartement("Medecin généraliste", res);
+  getAgendaByPoste("Medecin généraliste", res);
 });
 
 app.get("/sage/agenda", (req, res) => {
-  getAgendaByDepartement("Sage femme", res);
+  getAgendaByPoste("Sage femme", res);
 });
 
 app.get("/echo/agenda", (req, res) => {
-  getAgendaByDepartement("Échographiste", res);
+  getAgendaByPoste("Échographiste", res);
 });
 
 app.get("/infirm/agenda", (req, res) => {
-  getAgendaByDepartement(["Infirmier", "Interne/Garde"], res);
+  getAgendaByPoste(["Infirmier", "Interne/Garde"], res);
 });
 
 app.get("/interne/agenda", (req, res) => {
-  getAgendaByDepartement(["Infirmier", "Interne/Garde"], res);
+  getAgendaByPoste(["Infirmier", "Interne/Garde"], res);
 });
 
 app.get("/admin/agenda", (req, res) => {
@@ -3244,34 +3216,34 @@ app.delete("/delete_soins/:id", (req, res) => {
 }
 
 // Route pour ajouter une charge
-app.post("/ajouter-chrage", (req, res) => {
-  const { charge, montant, description, date, type_charge, type_caisse } = req.body;
 
-  // Vérification des données reçues
+app.post("/ajouter-chrage", upload.single("fichie_joint"), (req, res) => {
+  const { charge, montant, description, date, type_charge, type_caisse, provenance } = req.body;
+  const fichie_joint = req.file ? `/images/${req.file.filename}` : null;
+
   if (!charge || !montant || !date) {
     return res.status(400).json({
-      error:
-        "Veuillez fournir les champs obligatoires : charge, credit, et date.",
+      error: "Veuillez fournir les champs obligatoires : charge, montant, et date.",
     });
   }
 
-  // Requête SQL pour insérer les données
-  const query = `INSERT INTO comptabilite (charge, montant, description, date, type_charge, type_caisse) 
-                 VALUES (?, ?, ?, ?, ?, ?)`;
+  const query = `INSERT INTO comptabilite (charge, montant, description, date, type_charge, type_caisse, provenance, fichie_joint) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`;
 
-  // Exécution de la requête
   db.query(
     query,
-    [charge, montant, description || null, date, type_charge, type_caisse,], // Description est facultatif
+    [charge, montant, description || null, date, type_charge, type_caisse, provenance, fichie_joint],
     (err, result) => {
       if (err) {
         console.error("Erreur lors de l'insertion des données :", err);
-        return res.status(500).json({ error: "Erreur serveur." });
-      }
+        return res.status(500).json({ error: "Erreur serveur. " + err.message });
+      }      
 
+      // Réponse de succès avec les données pertinentes
       res.status(201).json({
         message: "Entrée ajoutée avec succès.",
         id: result.insertId,
+        fichie_joint: fichie_joint,
       });
     }
   );
@@ -3298,7 +3270,6 @@ app.get("/consultations/:year/:month", (req, res) => {
     res.json({ consultations: results });
   });
 });
-
 
 app.get("/ventes/:year/:month", (req, res) => {
   const { year, month } = req.params;
@@ -3345,6 +3316,23 @@ app.get("/charges/:year/:month", (req, res) => {
   });
 });
 
+// Route pour télécharger un fichier spécifique
+app.get('/telecharger/:filename', (req, res) => {
+  const filename = req.params.filename;
+  const filePath = path.join(imgDir, filename); // Utilise le bon chemin pour trouver les fichiers
+
+  if (fs.existsSync(filePath)) {
+    res.download(filePath, filename, (err) => {
+      if (err) {
+        console.error("Erreur lors du téléchargement du fichier :", err);
+        res.status(500).send('Erreur serveur.');
+      }
+    });
+  } else {
+    res.status(404).send('Fichier non trouvé.');
+  }
+});
+
 // Route pour récupérer le total des achats et la dernière date du mois
 app.get("/historique_achats/:year/:month", (req, res) => {
   const { year, month } = req.params;
@@ -3371,13 +3359,27 @@ app.get("/historique_achats/:year/:month", (req, res) => {
       return res.status(500).json({ message: "Erreur serveur" });
     }
 
-    if (results.length === 0) {
-      return res
-        .status(404)
-        .json({ message: "Aucun achat trouvé pour cette période" });
-    }
-
+    console.log("Résultats de la requête : ", results); // Log des résultats
     res.json(results);
+  });
+});
+
+app.delete("/delete_charge/:id", (req, res) => {
+  const id = req.params.id; // Récupérer l'ID de la charge à supprimer
+
+  // Effectuer la suppression uniquement si l'ID correspond à une charge dans la table 'comptabilite'
+  const sql = "DELETE FROM comptabilite WHERE id = ? AND charge IS NOT NULL"; // S'assurer que c'est une charge
+  const values = [id];
+
+  db.query(sql, values, (err, result) => {
+    if (err) {
+      console.error("Erreur lors de la suppression :", err);
+      return res.status(500).json({ message: "Une erreur s'est produite lors de la suppression" });
+    }
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: "Charge non trouvée" });
+    }
+    return res.json({ success: "Charge supprimée avec succès" });
   });
 });
 
