@@ -13,3 +13,14 @@
 {"level":"error","message":"Code invalide pour l'administrateur : undefined"}
 {"level":"error","message":"Code invalide pour l'administrateur : undefined"}
 {"level":"error","message":"Code invalide pour l'administrateur : undefined"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}
+{"error":{"code":"PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR","fatal":false},"level":"error","message":"Erreur lors de la requête SQL"}

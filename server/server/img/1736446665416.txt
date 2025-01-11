@@ -1,0 +1,45 @@
+
+
+NOTE: Never check for updates or register the software
+
+
+
+1. Install Stata/MP
+
+
+2. Launch StataMP
+
+
+3. Enter license:
+
+	Name: [Any]
+	Organization: [Any]
+	
+	Serial number: 10699393
+	Code: 4gpp mkha 3yqe 3o9v g1m7 iu6j ou5j
+	Authorization: tsrk
+
+
+
+4.UNSELECT "Register Stata online"
+
+
+5. Select Finish to start Stata/MP
+
+
+6. Enter the following command in Stata:
+
+	db update
+
+
+7. Select "From alternate location" then select "Browse"
+
+
+8. Back in Finder, unzip "stata14update" and drag the extracted folder into the Stata filepicker
+
+
+9. Select "Open" then select "OK" and follow the prompts until Stata restarts
+
+Enjoy!
+=================
+www.downloadly.ir

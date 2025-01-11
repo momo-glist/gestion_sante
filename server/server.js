@@ -9,20 +9,86 @@ const os = require("os");
 const jwt = require("jsonwebtoken");
 const winston = require("winston");
 const puppeteer = require("puppeteer");
-const bcrypt = require("bcrypt");
+const bcrypt = require("bcryptjs");
+require("dotenv").config();
+const PdfTable = require("voilab-pdf-table");
+const FitColumn = require("voilab-pdf-table/plugins/fitcolumn");
 
-// Chemin vers le bureau
-const bureauPath = path.join(os.homedir(), "Desktop", "factures");
+// Obtient le chemin du dossier "Téléchargements" en fonction du système d'exploitation
+let downloadsPath =
+  os.platform() === "win32"
+    ? path.join(os.homedir(), "Downloads")
+    : path.join(os.homedir(), "Downloads");
 
-// Vérifie si le dossier 'factures' existe sur le bureau, sinon le créer
-if (!fs.existsSync(bureauPath)) {
-  fs.mkdirSync(bureauPath);
-  console.log("Le dossier 'factures' a été créé sur le bureau.");
-} else {
-  console.log("Le dossier 'factures' existe déjà sur le bureau.");
+if (!fs.existsSync(downloadsPath)) {
+  console.log("Le dossier 'Téléchargements' n'existe pas.");
 }
 
-console.log("Dossier factures sur le bureau prêt à être utilisé :", bureauPath);
+const createPDF = (nom, prenom, type_soin, prix, age, localite, callback) => {
+  const facturePath = path.join(downloadsPath, `facture_${prenom}_${nom}.pdf`);
+  const doc = new PDFDocument({ size: "A4", margin: 50 });
+
+  doc.pipe(fs.createWriteStream(facturePath));
+
+  // Couleur bleue pour tout le texte
+  doc.fillColor("#0A5EB0");
+
+  // Ajouter le logo de l'entreprise à gauche en haut
+  doc.image("img/mid.png", 50, 50, { width: 100 });
+
+  // Ajouter le titre centré en haut
+  doc
+    .fontSize(20)
+    .text("Clinique Médicale", 0, 50, { align: "center", fontWeight: "bold" });
+
+  // Détails de l'entreprise centrés sous le titre
+  doc
+    .fontSize(10)
+    .text("MAH DOUSSOU COULIBLAY", 0, 100, { align: "center" })
+    .text("Moribabougou droit sur la Route de Koulikoro", { align: "center" })
+    .text("Téléphone : 76 45 31 72 - 44 41 53 79", { align: "center" });
+
+  // Ligne de séparation sous les détails de l'entreprise
+  doc.moveTo(50, 180).lineTo(545, 180).stroke();
+
+  // Informations du client sur la même ligne, juste sous la ligne de séparation
+  doc
+    .fontSize(12)
+    .text(`Facturé à :`, 50, 200)
+    .font("Helvetica-Bold")
+    .text(`${prenom} ${nom}`, 150, 200)
+    .font("Helvetica")
+    .text(`Âge : ${age}`, 300, 200)
+    .text(`Localité : ${localite}`, 450, 200);
+
+  // Ligne de séparation sous les informations du client
+  doc.moveTo(50, 230).lineTo(545, 230).stroke();
+
+  // Détails du service et date sur la même ligne
+  doc
+    .text(`Type de soin : ${type_soin}`, 50, 250)
+    .text(`Prix : ${prix} CFA`, 300, 250)
+    .text(`Date : ${new Date().toLocaleDateString()}`, 450, 250);
+
+  // Ajouter "Ordonnance" centré sous les détails du service
+  doc
+    .moveDown(2)
+    .fontSize(20)
+    .font("Helvetica-Bold")
+    .text("Ordonnance", 0, 300, { align: "center" });
+
+  doc.end();
+
+  if (typeof callback === "function") {
+    callback(null, facturePath);
+  } else {
+    console.error("Callback must be a function.");
+  }
+
+  console.log(
+    `La facture a été générée et sauvegardée dans le dossier Téléchargements : ${facturePath}`
+  );
+};
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(
@@ -86,6 +152,10 @@ const PDFDocument = require("pdfkit"); // Si vous souhaitez utiliser PDFKit en c
 }
 
 // Route pour gérer l'insertion des données et téléversement des images
+app.get("/", (req, res) => {
+  res.send("Bienvenue sur le serveur backend");
+});
+
 app.post(
   "/administration",
   upload.fields([{ name: "profil" }, { name: "identite" }]),
@@ -740,76 +810,80 @@ function updateEmploye(
 ) {
   const departementQuery = `SELECT id_departement FROM departements WHERE departement = ?`;
 
-  db.query(departementQuery, [departement, poste], (err, departementResults) => {
-    if (err) {
-      console.error("Erreur lors de la vérification du département:", err);
-      return res.status(500).json({
-        message: "Erreur serveur lors de la vérification du département",
-        error: err,
-      });
-    }
+  db.query(
+    departementQuery,
+    [departement, poste],
+    (err, departementResults) => {
+      if (err) {
+        console.error("Erreur lors de la vérification du département:", err);
+        return res.status(500).json({
+          message: "Erreur serveur lors de la vérification du département",
+          error: err,
+        });
+      }
 
-    let idDepartement;
-    if (departementResults.length === 0) {
-      const insertDepartementQuery = `INSERT INTO departements (departement, poste) VALUES (?, ?)`;
-      db.query(
-        insertDepartementQuery,
-        [departement, poste],
-        (err, insertDepartementResults) => {
-          if (err) {
-            console.error("Erreur lors de l'insertion du département:", err);
-            return res.status(500).json({
-              message: "Erreur serveur lors de l'insertion du département",
-              error: err,
-            });
+      let idDepartement;
+      if (departementResults.length === 0) {
+        const insertDepartementQuery = `INSERT INTO departements (departement, poste) VALUES (?, ?)`;
+        db.query(
+          insertDepartementQuery,
+          [departement, poste],
+          (err, insertDepartementResults) => {
+            if (err) {
+              console.error("Erreur lors de l'insertion du département:", err);
+              return res.status(500).json({
+                message: "Erreur serveur lors de l'insertion du département",
+                error: err,
+              });
+            }
+            idDepartement = insertDepartementResults.insertId;
+            // Mise à jour de l'employé dans la table administration
+            updateEmployeInDb(
+              id,
+              idSalaire,
+              idDepartement,
+              nom,
+              prenom,
+              date_naissance,
+              sexe,
+              situation,
+              telephone,
+              mail,
+              code_admin,
+              diplome,
+              niveau,
+              date_e,
+              profil,
+              identite,
+              res
+            );
           }
-          idDepartement = insertDepartementResults.insertId;
-          // Mise à jour de l'employé dans la table administration
-          updateEmployeInDb(
-            id,
-            idSalaire,
-            idDepartement,
-            nom,
-            prenom,
-            date_naissance,
-            sexe,
-            situation,
-            telephone,
-            mail,
-            code_admin,
-            diplome,
-            niveau,
-            date_e,
-            profil,
-            identite,
-            res
-          );
-        }
-      );
-    } else {
-      idDepartement = departementResults[0].id_departement;
-      // Mise à jour de l'employé dans la table administration
-      updateEmployeInDb(
-        id,
-        idSalaire,
-        idDepartement,
-        nom,
-        prenom,
-        date_naissance,
-        sexe,
-        situation,
-        telephone,
-        mail,
-        code_admin,
-        diplome,
-        niveau,
-        date_e,
-        profil,
-        identite,
-        res
-      );
+        );
+      } else {
+        idDepartement = departementResults[0].id_departement;
+        // Mise à jour de l'employé dans la table administration
+        updateEmployeInDb(
+          id,
+          idSalaire,
+          idDepartement,
+          nom,
+          prenom,
+          date_naissance,
+          sexe,
+          situation,
+          telephone,
+          mail,
+          code_admin,
+          diplome,
+          niveau,
+          date_e,
+          profil,
+          identite,
+          res
+        );
+      }
     }
-  });
+  );
 }
 
 // Fonction pour effectuer la mise à jour dans la table administration
@@ -1073,46 +1147,6 @@ app.get("/comptable/info/:idAdmin", (req, res) => {
   /* DEBUT PATIENT*/
 }
 
-const createPDF = (
-  facturePath,
-  nom,
-  prenom,
-  type_soin,
-  prix,
-  age,
-  localite,
-  callback
-) => {
-  // Logique pour générer le PDF
-  const PDFDocument = require("pdfkit");
-  const fs = require("fs");
-
-  const doc = new PDFDocument();
-  doc.pipe(fs.createWriteStream(facturePath));
-
-  // Date actuelle
-  const currentDate = new Date();
-  const formattedDate = currentDate.toLocaleDateString(); // Formatage de la date (ex. : 09/12/2024)
-
-  // Ajouter un titre en plus grand et en gras
-  doc
-    .fontSize(18)
-    .text("Facture de consultation", { align: "center" })
-    .moveDown(1); // Titre centré et espace après
-
-  // Ajouter les autres informations
-  doc.fontSize(12).text(`Facture pour ${prenom} ${nom}`);
-  doc.text(`Type de soin : ${type_soin}`);
-  doc.text(`Prix : ${prix} CFA`);
-  doc.text(`Âge : ${age}`);
-  doc.text(`Localité : ${localite}`);
-  doc.text(`Date : ${formattedDate}`); // Affichage de la date
-
-  doc.end();
-
-  callback(null); // Appel du callback une fois le PDF généré
-};
-
 app.post("/add", (req, res) => {
   console.log("Données reçues :", req.body);
   const {
@@ -1124,6 +1158,8 @@ app.post("/add", (req, res) => {
     ethnie,
     localite,
     tension,
+    temperature,
+    poids,
     type_soin,
     code_admin,
   } = req.body;
@@ -1205,7 +1241,7 @@ app.post("/add", (req, res) => {
 
         // Ajouter le patient
         const addPatientQuery =
-          "INSERT INTO patient (telephone, nom, prenom, age, sexe, ethnie, localite, tension, type_soin, code_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+          "INSERT INTO patient (telephone, nom, prenom, age, sexe, ethnie, localite, tension, poids, temperature, type_soin, code_admin) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         const patientValues = [
           telephone,
           nom,
@@ -1215,6 +1251,8 @@ app.post("/add", (req, res) => {
           ethnie,
           localite,
           tension,
+          poids,
+          temperature,
           type_soin,
           foundAdmin.code_admin, // Utilisez le code haché ici
         ];
@@ -1241,12 +1279,14 @@ app.post("/add", (req, res) => {
 
             const prixFormate = parseFloat(prixResults[0].prix).toFixed(2);
 
+            // Chemin du fichier PDF à créer dans Téléchargements
             const facturePath = path.join(
-              bureauPath,
+              downloadsPath,
               `${patientId}_facture.pdf`
             );
+
+            // Génération de la facture
             createPDF(
-              facturePath,
               nom,
               prenom,
               type_soin,
@@ -1301,6 +1341,8 @@ function getPatientsByPoste(poste, res) {
   p.telephone,
   p.localite,
   p.tension,
+  p.temperature,
+  p.poids,
   MAX(s.type_soin) AS type_soin
   FROM 
   patient p
@@ -1446,6 +1488,8 @@ app.post("/add_consultation", (req, res) => {
     telephone,
     localite,
     tension,
+    poids,
+    temperature,
     type_soin, // Utilisation de type_soin ici
     diagnostique,
     prescription,
@@ -1471,9 +1515,9 @@ app.post("/add_consultation", (req, res) => {
     // Étape 2 : Insérer la consultation dans la table consultation
     const insertConsultationQuery = `
       INSERT INTO consultation (
-        id_patient, nom, prenom, age, sexe, ethnie, telephone, localite, tension,
+        id_patient, nom, prenom, age, sexe, ethnie, telephone, localite, tension, poids, temperature,
         type_soin, diagnostique, prescription, montant, id_admin
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const consultationValues = [
       id_patient,
@@ -1485,6 +1529,8 @@ app.post("/add_consultation", (req, res) => {
       telephone,
       localite,
       tension,
+      poids,
+      temperature,
       type_soin, // Envoi de type_soin pour la consultation
       diagnostique,
       prescription,
@@ -1605,6 +1651,8 @@ app.post("/add_agenda", (req, res) => {
     telephone,
     localite,
     tension,
+    poids,
+    temperature,
     type_soin,
     diagnostique,
     prescription,
@@ -1620,8 +1668,8 @@ app.post("/add_agenda", (req, res) => {
   }
   // Requête SQL pour insérer dans l'agenda
   const queryAgenda = `
-    INSERT INTO agenda (id_patient, nom, prenom, age, sexe, ethnie, telephone, localite, tension, type_soin, diagnostique, prescription, id_admin, date, heure)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+    INSERT INTO agenda (id_patient, nom, prenom, age, sexe, ethnie, telephone, localite, tension, poids, temperature, type_soin, diagnostique, prescription, id_admin, date, heure)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
   db.query(
     queryAgenda,
@@ -1635,6 +1683,8 @@ app.post("/add_agenda", (req, res) => {
       telephone,
       localite,
       tension,
+      poids,
+      temperature,
       type_soin,
       diagnostique,
       prescription,
@@ -1682,6 +1732,8 @@ app.put("/update_agenda/:id", (req, res) => {
     telephone,
     localite,
     tension,
+    poids,
+    temperature,
     diagnostique,
     prescription,
     id_admin,
@@ -1706,6 +1758,8 @@ app.put("/update_agenda/:id", (req, res) => {
       telephone = ?, 
       localite = ?, 
       tension = ?, 
+      poids = ?, 
+      temperature = ?,
       id_admin = ?, 
       id_patient = ?
     WHERE id_agenda = ?`;
@@ -1725,6 +1779,8 @@ app.put("/update_agenda/:id", (req, res) => {
       telephone,
       localite,
       tension,
+      poids,
+      temperature,
       id_admin,
       id_patient,
       id_agenda,
@@ -2623,6 +2679,150 @@ app.post("/ajouter-medicament", (req, res) => {
   }
 });
 
+const generateInvoiceData = (medicamentsValides, montantTotal) => {
+  const invoiceItems = medicamentsValides.map((med) => {
+    return {
+      nom: med.nom,
+      forme: med.forme,
+      dosage: med.dosage,
+      posologie: med.posologie || "Non spécifiée",
+      prix_unitaire: med.prix_unitaire || 0,
+      quantite_vendue: med.quantite_vendue,
+      montant: med.quantite_vendue * (med.prix_unitaire || 0),
+    };
+  });
+
+  // Informations générales sur la facture
+  const invoiceInfo = {
+    montant_total: montantTotal,
+    items: invoiceItems,
+  };
+
+  return invoiceInfo;
+};
+
+const generateInvoicePDF = (invoiceInfo, id_vente, mode_paiement) => {
+  const filePath = path.join(downloadsPath, `facture_${id_vente}.pdf`);
+
+  if (!fs.existsSync(downloadsPath)) {
+    fs.mkdirSync(downloadsPath, { recursive: true });
+  }
+
+  const doc = new PDFDocument({ size: "A4", margin: 50 });
+  const table = new PdfTable(doc, { bottomMargin: 30 });
+
+  // Ajouter le plugin pour ajuster les colonnes
+  table.addPlugin(new FitColumn());
+
+  doc.pipe(fs.createWriteStream(filePath));
+
+  // Ajouter le logo de l'entreprise à gauche en haut
+  doc.image("img/mid.png", 50, 50, { width: 100 });
+
+  // Ajouter un espacement entre l'image et les informations de la facture en utilisant doc.y
+  const currentY = doc.y; // Obtenir la position actuelle après l'ajout de l'image
+  const spaceBetween = 20; // Espacement souhaité entre l'image et le texte
+  doc.y = currentY + spaceBetween; // Déplacer le curseur vers le bas de l'espacement
+
+  // Ajouter le titre centré en haut
+  doc
+    .fontSize(20)
+    .text("Pharmacie", 0, doc.y, { align: "center", fontWeight: "bold" });
+
+  // Détails de l'entreprise centrés sous le titre
+  doc
+    .fontSize(10)
+    .text("MAH DOUSSOU COULIBLAY", 0, doc.y + 30, { align: "center" })
+    .text("Moribabougou droit sur la Route de Koulikoro", { align: "center" })
+    .text("Téléphone : 76 45 31 72 - 44 41 53 79", { align: "center" });
+  doc.moveDown(); // Espacement entre les détails et les informations de la facture
+
+  // Informations de la facture - Ajouter de l'espace à gauche
+  const xOffset = 50; // Décalage à gauche uniquement pour les informations de la facture
+  doc.fontSize(12).text(`Facture Numero: ${id_vente}`, xOffset, doc.y);
+  doc.text(`Mode de Paiement: ${mode_paiement}`, xOffset, doc.y + 5);
+  doc.text(
+    `Montant Total: ${invoiceInfo.montant_total} FCFA`,
+    xOffset,
+    doc.y + 8
+  );
+  doc.moveDown(); // Espacement avant le tableau
+
+  // Configurer les colonnes du tableau
+  table
+    .addColumns([
+      { id: "quantite_vendue", header: "Quantité", width: 70 },
+      { id: "nom", header: "Nom", width: 100 },
+      { id: "forme", header: "Forme", width: 70 },
+      { id: "dosage", header: "Dosage", width: 70 },
+      { id: "posologie", header: "Posologie", width: 70 },
+      { id: "prix_unitaire", header: "Prix Unitaire", width: 100 },
+      { id: "montant", header: "Montant", width: 70 },
+    ])
+    .onPageAdded(() => {
+      table.addHeader();
+    });
+
+  // Ajouter les données (les items de la facture)
+  table.addBody(invoiceInfo.items);
+
+  // Calculer la position verticale de départ pour le tableau (après les informations)
+  const yStartTable = doc.y - 50; // Espacement avant le début du tableau
+  const rowHeight = 30; // Hauteur des lignes
+  const colWidth = [70, 100, 70, 70, 70, 100, 50]; // Largeur des colonnes
+  const rows = invoiceInfo.items.length;
+
+  // Dessiner les bordures
+  const drawBorders = () => {
+    // Position de départ des bordures
+    let yPos = yStartTable;
+
+    // Ajouter une ligne horizontale au-dessus des en-têtes
+    doc
+      .moveTo(50, yPos) // Position juste au-dessus des en-têtes
+      .lineTo(50 + colWidth.reduce((a, b) => a + b, 0), yPos)
+      .stroke(); // Ligne horizontale en haut des entêtes
+
+    yPos += rowHeight; // Déplacer la position pour les entêtes
+
+    // Dessiner les en-têtes et ajouter une ligne horizontale en bas des entêtes
+    doc
+      .moveTo(50, yPos) // Position juste après les en-têtes
+      .lineTo(50 + colWidth.reduce((a, b) => a + b, 0), yPos)
+      .stroke(); // Ligne horizontale sous les entêtes
+
+    yPos += rowHeight; // Déplacer pour la première ligne de données
+
+    // Dessiner les lignes verticales (bordures des colonnes)
+    let xPos = 50; // Position de départ pour la première colonne
+    const padding = -2; // Espace entre les lignes verticales et les valeurs
+
+    for (let i = 0; i < colWidth.length; i++) {
+      // Dessiner une ligne verticale
+      doc
+        .moveTo(xPos, yPos - rowHeight) // Revenir à la position des entêtes
+        .lineTo(xPos, yPos + rows * rowHeight) // Couvrir toutes les lignes (en-têtes et données)
+        .stroke(); // Ligne verticale
+      xPos += colWidth[i]; // Ajuster la position horizontale
+      xPos += padding; // Ajouter de l'espace après chaque colonne
+    }
+
+    // Ajouter une ligne verticale après la dernière colonne
+    const lastColXPos = 50 + colWidth.reduce((a, b) => a + b, 0); // Position de la dernière colonne
+    doc
+      .moveTo(lastColXPos, yPos - rowHeight) // Position de la ligne verticale après la dernière colonne
+      .lineTo(lastColXPos, yPos + rows * rowHeight) // Couvrir toutes les lignes
+      .stroke(); // Ligne verticale
+  };
+
+  drawBorders();
+
+  // Fin du document
+  doc.end();
+
+  return filePath;
+};
+
 app.post("/effectuer-vente", (req, res) => {
   const medicaments = req.body.medicaments; // Assurez-vous que les médicaments sont dans cette clé
   const code_admin = req.body.code_admin; // Récupérer code_admin du formulaire
@@ -2646,10 +2846,6 @@ app.post("/effectuer-vente", (req, res) => {
   if (!mode_paiement) {
     return res.status(400).json({ message: "Le mode de paiement est requis." });
   }
-
-  console.log("Médicaments reçus :", medicaments);
-  console.log("Code administrateur reçu :", code_admin);
-  console.log("Mode de paiement reçu :", mode_paiement);
 
   // 2. Vérifier que le code_admin existe dans la base de données
   const getAdminsQuery = "SELECT id_admin, code_admin FROM administration";
@@ -2732,129 +2928,114 @@ app.post("/effectuer-vente", (req, res) => {
           const id_vente = result.insertId; // Récupération de l'ID de vente
           console.log("ID de la vente :", id_vente);
 
-          // Incrémenter nombre_consultation pour l'administrateur
-          const updateAdminQuery = `
-    UPDATE administration
-    SET nombre_consultation = nombre_consultation + 1
-    WHERE code_admin = ?
-  `;
-          db.query(updateAdminQuery, [foundAdmin.code_admin], (err) => {
-            if (err) {
-              console.error(
-                "Erreur lors de la mise à jour de nombre_consultation :",
-                err
+          // Préparer les données de la facture
+          const invoiceInfo = generateInvoiceData(
+            medicamentsValides,
+            montant_total
+          );
+
+          // Générer le PDF de la facture
+          const filePath = generateInvoicePDF(
+            invoiceInfo,
+            id_vente,
+            mode_paiement
+          );
+
+          // 8. Préparation des valeurs pour detaille_vente
+          const detailleValues = medicamentsValides.map((med) => {
+            if (!med.nom || !med.forme || !med.dosage) {
+              throw new Error(
+                `Les informations du médicament (nom, forme, dosage) sont incomplètes.`
               );
+            }
+            return [
+              id_vente,
+              med.id_medicament,
+              med.nom,
+              med.forme,
+              med.dosage,
+              med.quantite_vendue,
+              med.prix_unitaire || 0, // Par défaut 0 si prix manquant
+            ];
+          });
+
+          const detailleQuery = `
+  INSERT INTO detaille_vente 
+  (id_vente, id_medicament, nom, forme, dosage, quantite_vendue, prix_unitaire)
+  VALUES ?
+  `;
+
+          // 9. Insertion des détails de vente
+          db.query(detailleQuery, [detailleValues], (err) => {
+            if (err) {
+              console.error("Erreur insertion détails de vente :", err);
               return db.rollback(() => {
                 res.status(500).json({
                   message:
-                    "Erreur lors de la mise à jour de nombre_consultation.",
+                    "Erreur lors de l'insertion des détails de la vente.",
                   error: err,
                 });
               });
             }
-            console.log("nombre_consultation mis à jour avec succès");
-            // 8. Préparation des valeurs pour detaille_vente
-            const detailleValues = medicamentsValides.map((med) => {
-              if (!med.nom || !med.forme || !med.dosage) {
-                throw new Error(
-                  `Les informations du médicament (nom, forme, dosage) sont incomplètes.`
+
+            // 10. Mise à jour des stocks
+            const stockUpdates = medicamentsValides.map((med) => {
+              return new Promise((resolve, reject) => {
+                const stockQuery = `
+        UPDATE stock_medicaments 
+        SET stock_courant = stock_courant - ?
+        WHERE id_medicament = ? AND stock_courant >= ?
+      `;
+                db.query(
+                  stockQuery,
+                  [med.quantite_vendue, med.id_medicament, med.quantite_vendue],
+                  (err, result) => {
+                    if (err || result.affectedRows === 0) {
+                      console.error(
+                        "Erreur mise à jour stock ou stock insuffisant :",
+                        med.nom
+                      );
+                      return reject(
+                        new Error(
+                          `Stock insuffisant pour le médicament : ${med.nom}`
+                        )
+                      );
+                    }
+                    resolve();
+                  }
                 );
-              }
-              return [
-                id_vente,
-                med.id_medicament,
-                med.nom,
-                med.forme,
-                med.dosage,
-                med.quantite_vendue,
-                med.prix_unitaire || 0, // Par défaut 0 si prix manquant
-              ];
+              });
             });
 
-            const detailleQuery = `
-    INSERT INTO detaille_vente 
-    (id_vente, id_medicament, nom, forme, dosage, quantite_vendue, prix_unitaire)
-    VALUES ?
-  `;
-
-            // 9. Insertion des détails de vente
-            db.query(detailleQuery, [detailleValues], (err) => {
-              if (err) {
-                console.error("Erreur insertion détails de vente :", err);
-                return db.rollback(() => {
-                  res.status(500).json({
-                    message:
-                      "Erreur lors de l'insertion des détails de la vente.",
-                    error: err,
+            // 11. Exécution des mises à jour de stock
+            Promise.all(stockUpdates)
+              .then(() => {
+                // Commit de la transaction après la mise à jour des stocks
+                db.commit((err) => {
+                  if (err) {
+                    console.error("Erreur validation de la transaction :", err);
+                    return db.rollback(() => {
+                      res.status(500).json({
+                        message: "Erreur validation transaction.",
+                        error: err,
+                      });
+                    });
+                  }
+                  res.status(200).json({
+                    message: "Vente enregistrée avec succès !",
+                    facture_url: filePath, // Ajout du lien vers la facture
                   });
                 });
-              }
-
-              // 10. Mise à jour des stocks
-              const stockUpdates = medicamentsValides.map((med) => {
-                return new Promise((resolve, reject) => {
-                  const stockQuery = `
-          UPDATE stock_medicaments 
-          SET stock_courant = stock_courant - ?
-          WHERE id_medicament = ? AND stock_courant >= ?
-        `;
-                  db.query(
-                    stockQuery,
-                    [
-                      med.quantite_vendue,
-                      med.id_medicament,
-                      med.quantite_vendue,
-                    ],
-                    (err, result) => {
-                      if (err || result.affectedRows === 0) {
-                        console.error(
-                          "Erreur mise à jour stock ou stock insuffisant :",
-                          med.nom
-                        );
-                        return reject(
-                          new Error(
-                            `Stock insuffisant pour le médicament : ${med.nom}`
-                          )
-                        );
-                      }
-                      resolve();
-                    }
+              })
+              .catch((error) => {
+                db.rollback(() => {
+                  console.error(
+                    "Erreur lors de la mise à jour du stock :",
+                    error.message
                   );
+                  res.status(400).json({ message: error.message });
                 });
               });
-
-              // 11. Exécution des mises à jour de stock
-              Promise.all(stockUpdates)
-                .then(() => {
-                  // Commit de la transaction après la mise à jour des stocks
-                  db.commit((err) => {
-                    if (err) {
-                      console.error(
-                        "Erreur validation de la transaction :",
-                        err
-                      );
-                      return db.rollback(() => {
-                        res.status(500).json({
-                          message: "Erreur validation transaction.",
-                          error: err,
-                        });
-                      });
-                    }
-                    res
-                      .status(200)
-                      .json({ message: "Vente enregistrée avec succès !" });
-                  });
-                })
-                .catch((error) => {
-                  db.rollback(() => {
-                    console.error(
-                      "Erreur lors de la mise à jour du stock :",
-                      error.message
-                    );
-                    res.status(400).json({ message: error.message });
-                  });
-                });
-            });
           });
         }
       );
@@ -3218,12 +3399,21 @@ app.delete("/delete_soins/:id", (req, res) => {
 // Route pour ajouter une charge
 
 app.post("/ajouter-chrage", upload.single("fichie_joint"), (req, res) => {
-  const { charge, montant, description, date, type_charge, type_caisse, provenance } = req.body;
+  const {
+    charge,
+    montant,
+    description,
+    date,
+    type_charge,
+    type_caisse,
+    provenance,
+  } = req.body;
   const fichie_joint = req.file ? `/images/${req.file.filename}` : null;
 
   if (!charge || !montant || !date) {
     return res.status(400).json({
-      error: "Veuillez fournir les champs obligatoires : charge, montant, et date.",
+      error:
+        "Veuillez fournir les champs obligatoires : charge, montant, et date.",
     });
   }
 
@@ -3232,12 +3422,23 @@ app.post("/ajouter-chrage", upload.single("fichie_joint"), (req, res) => {
 
   db.query(
     query,
-    [charge, montant, description || null, date, type_charge, type_caisse, provenance, fichie_joint],
+    [
+      charge,
+      montant,
+      description || null,
+      date,
+      type_charge,
+      type_caisse,
+      provenance,
+      fichie_joint,
+    ],
     (err, result) => {
       if (err) {
         console.error("Erreur lors de l'insertion des données :", err);
-        return res.status(500).json({ error: "Erreur serveur. " + err.message });
-      }      
+        return res
+          .status(500)
+          .json({ error: "Erreur serveur. " + err.message });
+      }
 
       // Réponse de succès avec les données pertinentes
       res.status(201).json({
@@ -3263,7 +3464,9 @@ app.get("/consultations/:year/:month", (req, res) => {
   db.query(query, [year, month], (err, results) => {
     if (err) {
       console.error("Erreur lors de la requête SQL :", err);
-      return res.status(500).send("Erreur lors de la récupération des consultations");
+      return res
+        .status(500)
+        .send("Erreur lors de la récupération des consultations");
     }
 
     // Vous pouvez envoyer toutes les consultations ici
@@ -3317,7 +3520,7 @@ app.get("/charges/:year/:month", (req, res) => {
 });
 
 // Route pour télécharger un fichier spécifique
-app.get('/telecharger/:filename', (req, res) => {
+app.get("/telecharger/:filename", (req, res) => {
   const filename = req.params.filename;
   const filePath = path.join(imgDir, filename); // Utilise le bon chemin pour trouver les fichiers
 
@@ -3325,11 +3528,11 @@ app.get('/telecharger/:filename', (req, res) => {
     res.download(filePath, filename, (err) => {
       if (err) {
         console.error("Erreur lors du téléchargement du fichier :", err);
-        res.status(500).send('Erreur serveur.');
+        res.status(500).send("Erreur serveur.");
       }
     });
   } else {
-    res.status(404).send('Fichier non trouvé.');
+    res.status(404).send("Fichier non trouvé.");
   }
 });
 
@@ -3374,7 +3577,9 @@ app.delete("/delete_charge/:id", (req, res) => {
   db.query(sql, values, (err, result) => {
     if (err) {
       console.error("Erreur lors de la suppression :", err);
-      return res.status(500).json({ message: "Une erreur s'est produite lors de la suppression" });
+      return res
+        .status(500)
+        .json({ message: "Une erreur s'est produite lors de la suppression" });
     }
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: "Charge non trouvée" });
