@@ -11,8 +11,7 @@ const winston = require("winston");
 const puppeteer = require("puppeteer");
 const bcrypt = require("bcryptjs");
 require("dotenv").config();
-const PdfTable = require("voilab-pdf-table");
-const FitColumn = require("voilab-pdf-table/plugins/fitcolumn");
+const easyinvoice = require("easyinvoice");
 
 // Obtient le chemin du dossier "Téléchargements" en fonction du système d'exploitation
 let downloadsPath =
@@ -540,6 +539,9 @@ app.post("/auth", (req, res) => {
           break;
         default:
           redirectPage = "/infirm";
+        case "Laboratin":
+          redirectPage = "/labo";
+          break;
       }
 
       // Génération d'un JWT
@@ -1134,6 +1136,11 @@ app.get("/pharmacie/info/:idAdmin", (req, res) => {
   getAdminById(idAdmin, res);
 });
 
+app.get("/labo/info/:idAdmin", (req, res) => {
+  const idAdmin = req.params.idAdmin; // Récupérer l'ID du médecin connecté
+  getAdminById(idAdmin, res);
+});
+
 app.get("/comptable/info/:idAdmin", (req, res) => {
   const idAdmin = req.params.idAdmin; // Récupérer l'ID du médecin connecté
   getAdminById(idAdmin, res);
@@ -1388,6 +1395,46 @@ app.get("/infirm/patient", (req, res) => {
 
 app.get("/interne/patient", (req, res) => {
   getPatientsByPoste(["Infirmier", "Interne/Garde"], res);
+});
+
+app.get("/labo", (req, res) => {
+  const sql = `
+    SELECT 
+  p.id_patient, 
+  p.nom, 
+  p.prenom,
+  p.age,
+  p.sexe,
+  p.ethnie,
+  p.telephone,
+  p.localite,
+  p.tension,
+  p.temperature,
+  p.poids,
+  MAX(s.type_soin) AS type_soin
+  FROM 
+  patient p
+JOIN 
+      soins s ON p.type_soin = s.type_soin
+    JOIN 
+      administration a ON s.id_departement = a.id_departement
+    JOIN 
+      departements d ON a.id_departement = d.id_departement
+    WHERE 
+      d.departement = "Service de laboratoire"
+    GROUP BY 
+      p.id_patient;
+  `;
+
+  db.query(sql, (err, result) => {
+    if (err) {
+      console.error("Erreur SQL :", err);
+      return res.status(500).json({ message: "Erreur serveur" });
+    }
+
+    console.log("Résultats de la requête : ", result); // Log des résultats
+    res.json(result); // Renvoie les résultats sous forme de JSON
+  });
 });
 
 app.get("/admin", (req, res) => {
@@ -2679,151 +2726,7 @@ app.post("/ajouter-medicament", (req, res) => {
   }
 });
 
-const generateInvoiceData = (medicamentsValides, montantTotal) => {
-  const invoiceItems = medicamentsValides.map((med) => {
-    return {
-      nom: med.nom,
-      forme: med.forme,
-      dosage: med.dosage,
-      posologie: med.posologie || "Non spécifiée",
-      prix_unitaire: med.prix_unitaire || 0,
-      quantite_vendue: med.quantite_vendue,
-      montant: med.quantite_vendue * (med.prix_unitaire || 0),
-    };
-  });
-
-  // Informations générales sur la facture
-  const invoiceInfo = {
-    montant_total: montantTotal,
-    items: invoiceItems,
-  };
-
-  return invoiceInfo;
-};
-
-const generateInvoicePDF = (invoiceInfo, id_vente, mode_paiement) => {
-  const filePath = path.join(downloadsPath, `facture_${id_vente}.pdf`);
-
-  if (!fs.existsSync(downloadsPath)) {
-    fs.mkdirSync(downloadsPath, { recursive: true });
-  }
-
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
-  const table = new PdfTable(doc, { bottomMargin: 30 });
-
-  // Ajouter le plugin pour ajuster les colonnes
-  table.addPlugin(new FitColumn());
-
-  doc.pipe(fs.createWriteStream(filePath));
-
-  // Ajouter le logo de l'entreprise à gauche en haut
-  doc.image("img/mid.png", 50, 50, { width: 100 });
-
-  // Ajouter un espacement entre l'image et les informations de la facture en utilisant doc.y
-  const currentY = doc.y; // Obtenir la position actuelle après l'ajout de l'image
-  const spaceBetween = 20; // Espacement souhaité entre l'image et le texte
-  doc.y = currentY + spaceBetween; // Déplacer le curseur vers le bas de l'espacement
-
-  // Ajouter le titre centré en haut
-  doc
-    .fontSize(20)
-    .text("Pharmacie", 0, doc.y, { align: "center", fontWeight: "bold" });
-
-  // Détails de l'entreprise centrés sous le titre
-  doc
-    .fontSize(10)
-    .text("MAH DOUSSOU COULIBLAY", 0, doc.y + 30, { align: "center" })
-    .text("Moribabougou droit sur la Route de Koulikoro", { align: "center" })
-    .text("Téléphone : 76 45 31 72 - 44 41 53 79", { align: "center" });
-  doc.moveDown(); // Espacement entre les détails et les informations de la facture
-
-  // Informations de la facture - Ajouter de l'espace à gauche
-  const xOffset = 50; // Décalage à gauche uniquement pour les informations de la facture
-  doc.fontSize(12).text(`Facture Numero: ${id_vente}`, xOffset, doc.y);
-  doc.text(`Mode de Paiement: ${mode_paiement}`, xOffset, doc.y + 5);
-  doc.text(
-    `Montant Total: ${invoiceInfo.montant_total} FCFA`,
-    xOffset,
-    doc.y + 8
-  );
-  doc.moveDown(); // Espacement avant le tableau
-
-  // Configurer les colonnes du tableau
-  table
-    .addColumns([
-      { id: "quantite_vendue", header: "Quantité", width: 70 },
-      { id: "nom", header: "Nom", width: 100 },
-      { id: "forme", header: "Forme", width: 70 },
-      { id: "dosage", header: "Dosage", width: 70 },
-      { id: "posologie", header: "Posologie", width: 70 },
-      { id: "prix_unitaire", header: "Prix Unitaire", width: 100 },
-      { id: "montant", header: "Montant", width: 70 },
-    ])
-    .onPageAdded(() => {
-      table.addHeader();
-    });
-
-  // Ajouter les données (les items de la facture)
-  table.addBody(invoiceInfo.items);
-
-  // Calculer la position verticale de départ pour le tableau (après les informations)
-  const yStartTable = doc.y - 50; // Espacement avant le début du tableau
-  const rowHeight = 30; // Hauteur des lignes
-  const colWidth = [70, 100, 70, 70, 70, 100, 50]; // Largeur des colonnes
-  const rows = invoiceInfo.items.length;
-
-  // Dessiner les bordures
-  const drawBorders = () => {
-    // Position de départ des bordures
-    let yPos = yStartTable;
-
-    // Ajouter une ligne horizontale au-dessus des en-têtes
-    doc
-      .moveTo(50, yPos) // Position juste au-dessus des en-têtes
-      .lineTo(50 + colWidth.reduce((a, b) => a + b, 0), yPos)
-      .stroke(); // Ligne horizontale en haut des entêtes
-
-    yPos += rowHeight; // Déplacer la position pour les entêtes
-
-    // Dessiner les en-têtes et ajouter une ligne horizontale en bas des entêtes
-    doc
-      .moveTo(50, yPos) // Position juste après les en-têtes
-      .lineTo(50 + colWidth.reduce((a, b) => a + b, 0), yPos)
-      .stroke(); // Ligne horizontale sous les entêtes
-
-    yPos += rowHeight; // Déplacer pour la première ligne de données
-
-    // Dessiner les lignes verticales (bordures des colonnes)
-    let xPos = 50; // Position de départ pour la première colonne
-    const padding = -2; // Espace entre les lignes verticales et les valeurs
-
-    for (let i = 0; i < colWidth.length; i++) {
-      // Dessiner une ligne verticale
-      doc
-        .moveTo(xPos, yPos - rowHeight) // Revenir à la position des entêtes
-        .lineTo(xPos, yPos + rows * rowHeight) // Couvrir toutes les lignes (en-têtes et données)
-        .stroke(); // Ligne verticale
-      xPos += colWidth[i]; // Ajuster la position horizontale
-      xPos += padding; // Ajouter de l'espace après chaque colonne
-    }
-
-    // Ajouter une ligne verticale après la dernière colonne
-    const lastColXPos = 50 + colWidth.reduce((a, b) => a + b, 0); // Position de la dernière colonne
-    doc
-      .moveTo(lastColXPos, yPos - rowHeight) // Position de la ligne verticale après la dernière colonne
-      .lineTo(lastColXPos, yPos + rows * rowHeight) // Couvrir toutes les lignes
-      .stroke(); // Ligne verticale
-  };
-
-  drawBorders();
-
-  // Fin du document
-  doc.end();
-
-  return filePath;
-};
-
-app.post("/effectuer-vente", (req, res) => {
+app.post("/effectuer-vente", async (req, res) => {
   const medicaments = req.body.medicaments; // Assurez-vous que les médicaments sont dans cette clé
   const code_admin = req.body.code_admin; // Récupérer code_admin du formulaire
   const mode_paiement = req.body.mode_paiement; // Récupérer mode_paiement du formulaire
@@ -2928,19 +2831,6 @@ app.post("/effectuer-vente", (req, res) => {
           const id_vente = result.insertId; // Récupération de l'ID de vente
           console.log("ID de la vente :", id_vente);
 
-          // Préparer les données de la facture
-          const invoiceInfo = generateInvoiceData(
-            medicamentsValides,
-            montant_total
-          );
-
-          // Générer le PDF de la facture
-          const filePath = generateInvoicePDF(
-            invoiceInfo,
-            id_vente,
-            mode_paiement
-          );
-
           // 8. Préparation des valeurs pour detaille_vente
           const detailleValues = medicamentsValides.map((med) => {
             if (!med.nom || !med.forme || !med.dosage) {
@@ -2960,10 +2850,10 @@ app.post("/effectuer-vente", (req, res) => {
           });
 
           const detailleQuery = `
-  INSERT INTO detaille_vente 
-  (id_vente, id_medicament, nom, forme, dosage, quantite_vendue, prix_unitaire)
-  VALUES ?
-  `;
+            INSERT INTO detaille_vente 
+            (id_vente, id_medicament, nom, forme, dosage, quantite_vendue, prix_unitaire)
+            VALUES ?
+          `;
 
           // 9. Insertion des détails de vente
           db.query(detailleQuery, [detailleValues], (err) => {
@@ -2982,10 +2872,10 @@ app.post("/effectuer-vente", (req, res) => {
             const stockUpdates = medicamentsValides.map((med) => {
               return new Promise((resolve, reject) => {
                 const stockQuery = `
-        UPDATE stock_medicaments 
-        SET stock_courant = stock_courant - ?
-        WHERE id_medicament = ? AND stock_courant >= ?
-      `;
+                  UPDATE stock_medicaments 
+                  SET stock_courant = stock_courant - ?
+                  WHERE id_medicament = ? AND stock_courant >= ?
+                `;
                 db.query(
                   stockQuery,
                   [med.quantite_vendue, med.id_medicament, med.quantite_vendue],
@@ -3007,10 +2897,9 @@ app.post("/effectuer-vente", (req, res) => {
               });
             });
 
-            // 11. Exécution des mises à jour de stock
+            // Attendre que toutes les mises à jour des stocks soient terminées
             Promise.all(stockUpdates)
               .then(() => {
-                // Commit de la transaction après la mise à jour des stocks
                 db.commit((err) => {
                   if (err) {
                     console.error("Erreur validation de la transaction :", err);
@@ -3021,10 +2910,71 @@ app.post("/effectuer-vente", (req, res) => {
                       });
                     });
                   }
-                  res.status(200).json({
-                    message: "Vente enregistrée avec succès !",
-                    facture_url: filePath, // Ajout du lien vers la facture
-                  });
+
+                  // Génération des détails pour la facture
+                  const itemsHtml = medicaments
+                    .map((med) => {
+                      return `
+      <tr>
+        <td>${med.nom}</td>
+        <td>${med.forme}</td>
+        <td>${med.dosage}</td>
+        <td>${med.quantite_vendue}</td>
+        <td>${med.prix_unitaire} FCFA</td>
+        <td>${med.quantite_vendue * (med.prix_unitaire || 0)} FCFA</td>
+      </tr>
+    `;
+                    })
+                    .join("");
+
+                  // Chargement du modèle HTML
+                  fs.readFile(
+                    path.join(__dirname, "public", "pharmacie.html"),
+                    "utf8",
+                    (err, templateHtml) => {
+                      if (err) {
+                        console.error(
+                          "Erreur lors de la lecture du modèle HTML :",
+                          err
+                        );
+                        return res
+                          .status(500)
+                          .json({
+                            message: "Erreur de lecture du modèle de facture.",
+                          });
+                      }
+
+                      const logoPath = path.resolve(__dirname, 'img', 'mid.png');
+                      // Remplacement des variables dans le modèle HTML
+                      const finalHtml = templateHtml
+                        .replace('{{imgHtml}}', logoPath)
+                        .replace("{{itemsHtml}}", itemsHtml)
+                        .replace("{{montant_total}}", montant_total);
+
+                      // Génération du PDF avec Puppeteer
+                      (async () => {
+                        const browser = await puppeteer.launch();
+                        const page = await browser.newPage();
+                        await page.setContent(finalHtml);
+                        const pdfPath = path.join(
+                          downloadsPath,
+                          `facture_${id_vente}.pdf`
+                        );
+                        await page.pdf({ path: pdfPath, format: "A5" });
+                        console.log(`Facture générée à : ${pdfPath}`);
+
+                        await browser.close();
+                        console.log("Facture générée avec succès !");
+
+                        // Retourner la réponse
+                        res.status(200).json({
+                          message:
+                            "Vente effectuée avec succès et facture générée.",
+                          pdfPath: pdfPath,
+                        });
+                      })();
+                    }
+                  );
                 });
               })
               .catch((error) => {
@@ -3246,6 +3196,22 @@ app.get("/dosages/search", (req, res) => {
     }
     console.log("Résultats des dosages :", results); // Débogage
     res.json(results.map((row) => ({ dosage: row.dosage })));
+  });
+});
+
+app.get("/posologies/search", (req, res) => {
+  const { name } = req.query;
+  const query = `%${name}`;
+  const sql =
+    "SELECT DISTINCT posologie FROM medicaments WHERE posologie LIKE ?";
+
+  db.query(sql, [query], (err, results) => {
+    if (err) {
+      console.error("Erreur lors de la récupération des posologies :", err);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    console.log("Résultats des posologies :", results); // Débogage
+    res.json(results.map((row) => ({ posologie: row.posologie })));
   });
 });
 

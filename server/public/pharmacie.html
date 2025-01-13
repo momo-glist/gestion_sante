@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facture - {{invoiceNumber}}</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+
+        .invoice {
+    width: 100%; /* S'adapte au conteneur */
+    max-width: 540px; /* Largeur maximum adaptée à A5 */
+    margin: 0 auto;
+    padding: 10px;
+    background-color: white;
+    border: 1px solid #ccc;
+    box-sizing: border-box; /* Inclut les bordures et les paddings */
+}
+body {
+    margin: 0;
+    padding: 0;
+    font-size: 12px; /* Ajuster la taille des polices */
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+        .invoice-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .invoice-header img {
+            width: 50px; /* Taille de l'image, ajustez si nécessaire */
+            height: auto;
+            margin-right: 20px; /* Espacement entre l'image et les informations */
+        }
+
+        .invoice-header p {
+            text-align: right;
+            margin: 0;
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 30px; 
+        }
+
+        th, td { 
+            padding: 10px; 
+            text-align: left; 
+            border: 1px solid #ddd; 
+        }
+
+        th { 
+            background-color: #f2f2f2; 
+        }
+
+    </style>
+</head>
+<body>
+    <div class="invoice">
+        <div class="invoice-header">
+            <img src={{imgHtml}} alt="Logo de la pharmacie"> <!-- Ajoutez ici votre image -->
+            <div>
+                <p>Pharmacie MAH DOUSSOU COULIBALY</p>
+                <p>Adresse : Moribabougou droit sur la Route de Koulikoro, Bamako, Mali</p>
+                <p>Téléphone : 76 45 31 72 - 44 41 53 79</p>
+            </div>
+        </div>
+        <div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Produit</th>
+                        <th>Forme</th>
+                        <th>Dosage</th>
+                        <th>Quantité</th>
+                        <th>Prix Unitaire</th>
+                        <th>Total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{itemsHtml}} <!-- Les éléments des produits seront insérés ici -->
+                </tbody>
+            </table>
+        </div>
+        <p><strong>Total : {{montant_total}} FCFA</strong></p>
+        <p>Merci de votre achat ! À bientôt.</p>
+    </div>
+</body>
+</html>
+
+

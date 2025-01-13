@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Facture - {{invoiceNumber}}</title>
+    <style>
+        body { font-family: Arial, sans-serif; }
+
+        .invoice { 
+            width: 80%; 
+            margin: 20px auto; 
+            padding: 20px; 
+            background-color: white; 
+            border: 1px solid #ccc; 
+        }
+
+        .invoice-header {
+            display: flex;
+            align-items: center;
+        }
+
+        .invoice-header img {
+            width: 50px; /* Taille de l'image, ajustez si nécessaire */
+            height: auto;
+            margin-right: 20px; /* Espacement entre l'image et les informations */
+        }
+
+        .invoice-header p {
+            text-align: right;
+            margin: 0;
+        }
+
+        .customer-info {
+            margin-top: 20px;
+            font-weight: bold;
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 30px; 
+        }
+
+        th, td { 
+            padding: 10px; 
+            text-align: left; 
+            border: 1px solid #ddd; 
+        }
+
+        th { 
+            background-color: #f2f2f2; 
+        }
+
+        .footer-notes {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .footer-notes div {
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice">
+        <div class="invoice-header">
+            <img src="../img/mid.png" alt="Logo de la pharmacie">
+            <div>
+                <p>Pharmacie MAH DOUSSOU COULIBALY</p>
+                <p>Adresse : Moribabougou droit sur la Route de Koulikoro, Bamako, Mali</p>
+                <p>Téléphone : 76 45 31 72 - 44 41 53 79</p>
+            </div>
+        </div>
+        <div class="customer-info">
+            Nom : {{nom}}<br>
+            Prénom : {{prenom}}<br>
+            Sexe: {{sexe}}<br>
+            Age: {{age}}<br>
+            Profession: {{profession}}<br>
+            Residence: {{localite}}<br>
+            Ethnie: {{ethnie}}<br>
+        </div>
+        <div>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Nature de l'examen</th>
+                        <th>Résultat</th>
+                        <th>Renseignements Cliniques</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {{itemsHtml}}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="3" class="footer-notes">
+                            Moribabougou droit : le {{date}} <br>
+                            <div>Le Médecin traitant | Le Laboratoire</div>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</body>
+</html>
+
