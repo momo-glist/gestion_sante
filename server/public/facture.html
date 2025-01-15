@@ -14,71 +14,62 @@
             padding: 0;
             font-size: 12px;
         }
-        
-        .invoice {
-            width: 100%;
-            max-width: 540px;
-            margin: 0 auto;
-            padding: 10px;
-            background-color: white;
-            box-sizing: border-box;
+
+        .invoice { 
+            width: 80%; 
+            margin: 20px auto; 
+            padding: 20px; 
+            background-color: white; 
+            border: 1px solid #ccc; 
         }
-        
+
         .invoice-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 20px;
         }
-        
+
         .invoice-header img {
             width: 50px;
             height: auto;
             margin-right: 20px;
         }
-        
+
         .invoice-header p {
             text-align: right;
             margin: 0;
         }
 
-        .title{
-            padding-bottom: 10px;
-        }
-
         .invoice-header p:first-child {
             font-weight: bold;
-        }
-        
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 30px;
-        }
-        
-        th {
-            text-align: left;
             padding-bottom: 10px;
-            border-bottom: 2px solid #ddd;
-        }
-        
-        td {
-            padding: 10px 0;
-            border-bottom: 1px solid #eee;
-        }
-        
-        tr:last-child td {
-            border-bottom: none;
         }
 
-        p {
-            margin: 10px 0;
-        }
-
-        .total {
-            font-weight: bold;
+        .customer-info {
             margin-top: 20px;
-            text-align: right;
+            font-weight: bold;
+        }
+
+        .customer-info div {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 30px; 
+            border: 1px solid black; /* Bordure noire autour du tableau */
+        }
+
+        th, td { 
+            padding: 10px; 
+            text-align: left; 
+            border: 1px solid black; /* Bordures noires pour les cellules */
+        }
+
+        th { 
+            background-color: #f2f2f2; 
         }
 
         .thank-you {
@@ -91,33 +82,26 @@
         <div class="invoice-header">
             <img src="{{imgHtml}}" alt="Logo de la pharmacie">
             <div>
-                <p class="title">Clinique MAH DOUSSOU COULIBALY</p>
+                <p>Clinique MAH DOUSSOU COULIBALY</p>
                 <p>Moribabougou droit sur la Route de Koulikoro</p>
                 <p>Bamako, Mali</p>
                 <p>76 45 31 72 - 44 41 53 79</p>
             </div>
         </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Produit</th>
-                    <th>Forme</th>
-                    <th>Dosage</th>
-                    <th>Quantité</th>
-                    <th>Prix Unitaire</th>
-                    <th>Total</th>
-                </tr>
-            </thead>
-            <tbody>
-                {{itemsHtml}}
-            </tbody>
-        </table>
-        <p class="total">Total : {{montant_total}} FCFA</p>
-        <p class="thank-you">Merci de votre achat ! À bientôt.</p>
+        <div class="customer-info">
+            <div>
+                <span>Facture à : {{nom}} {{prenom}}</span>
+                <span>Age: {{age}} ans</span>
+                <span>Residence: {{localite}}</span>
+            </div>
+            <div>
+                <span>Type de soin: {{type_soin}}</span>
+                <span>Prix: {{prix}}</span>
+                <span>Date: {{date}}</span>
+            </div>
+        </div>
+        <h2 class="thank-you">Ordonance</h2>
+        </div>
     </div>
 </body>
 </html>
-
-
-
-

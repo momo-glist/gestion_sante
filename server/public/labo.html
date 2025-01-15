@@ -4,8 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Facture - {{invoiceNumber}}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Sans&family=Nunito:ital,wght@0,200..1000;1,200..1000&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; }
+        body { 
+            font-family: "Fira Sans", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            font-size: 12px;
+        }
 
         .invoice { 
             width: 80%; 
@@ -18,12 +26,13 @@
         .invoice-header {
             display: flex;
             align-items: center;
+            justify-content: space-between;
         }
 
         .invoice-header img {
-            width: 50px; /* Taille de l'image, ajustez si nécessaire */
+            width: 50px;
             height: auto;
-            margin-right: 20px; /* Espacement entre l'image et les informations */
+            margin-right: 20px;
         }
 
         .invoice-header p {
@@ -31,21 +40,32 @@
             margin: 0;
         }
 
+        .invoice-header p:first-child {
+            font-weight: bold;
+            padding-bottom: 10px;
+        }
+
         .customer-info {
             margin-top: 20px;
             font-weight: bold;
+        }
+
+        .customer-info div {
+            display: flex;
+            justify-content: space-between;
         }
 
         table { 
             width: 100%; 
             border-collapse: collapse; 
             margin-top: 30px; 
+            border: 1px solid black; /* Bordure noire autour du tableau */
         }
 
         th, td { 
             padding: 10px; 
             text-align: left; 
-            border: 1px solid #ddd; 
+            border: 1px solid black; /* Bordures noires pour les cellules */
         }
 
         th { 
@@ -54,7 +74,8 @@
 
         .footer-notes {
             margin-top: 20px;
-            text-align: center;
+            display: flex;
+            justify-content: space-between;
         }
 
         .footer-notes div {
@@ -65,21 +86,25 @@
 <body>
     <div class="invoice">
         <div class="invoice-header">
-            <img src="../img/mid.png" alt="Logo de la pharmacie">
+            <img src="{{imgHtml}}" alt="Logo de la pharmacie">
             <div>
-                <p>Pharmacie MAH DOUSSOU COULIBALY</p>
-                <p>Adresse : Moribabougou droit sur la Route de Koulikoro, Bamako, Mali</p>
-                <p>Téléphone : 76 45 31 72 - 44 41 53 79</p>
+                <p>Clinique MAH DOUSSOU COULIBALY</p>
+                <p>Moribabougou droit sur la Route de Koulikoro</p>
+                <p>Bamako, Mali</p>
+                <p>76 45 31 72 - 44 41 53 79</p>
             </div>
         </div>
         <div class="customer-info">
-            Nom : {{nom}}<br>
-            Prénom : {{prenom}}<br>
-            Sexe: {{sexe}}<br>
-            Age: {{age}}<br>
-            Profession: {{profession}}<br>
-            Residence: {{localite}}<br>
-            Ethnie: {{ethnie}}<br>
+            <div>
+                <span>Nom : {{nom}}</span>
+                <span>Prénom : {{prenom}}</span>
+                <span>Age: {{age}} ans</span>
+            </div>
+            <div>
+                <span>Sexe: {{sexe}}</span>
+                <span>Ethnie: {{ethnie}}</span>
+                <span>Residence: {{localite}}</span>
+            </div>
         </div>
         <div>
             <table>
@@ -93,17 +118,21 @@
                 <tbody>
                     {{itemsHtml}}
                 </tbody>
-                <tfoot>
-                    <tr>
-                        <td colspan="3" class="footer-notes">
-                            Moribabougou droit : le {{date}} <br>
-                            <div>Le Médecin traitant | Le Laboratoire</div>
-                        </td>
-                    </tr>
-                </tfoot>
             </table>
+            <div class="footer-notes">
+                <div>
+                    <p>Moribabougou droit : le ___/___/20__</p> 
+                    <p>Le Médecin traitant</p>
+                </div>
+                <div>
+                    <p>Moribabougou droit : le ___/___/20__</p> 
+                    <p>Le Laboratoire</p>
+                </div>
+            </div>
         </div>
     </div>
 </body>
 </html>
+
+
 

@@ -23,71 +23,9 @@ if (!fs.existsSync(downloadsPath)) {
   console.log("Le dossier 'Téléchargements' n'existe pas.");
 }
 
-const createPDF = (nom, prenom, type_soin, prix, age, localite, callback) => {
-  const facturePath = path.join(downloadsPath, `facture_${prenom}_${nom}.pdf`);
-  const doc = new PDFDocument({ size: "A4", margin: 50 });
+let logoPath = path.resolve(__dirname, "img", "health.png");
 
-  doc.pipe(fs.createWriteStream(facturePath));
-
-  // Couleur bleue pour tout le texte
-  doc.fillColor("#0A5EB0");
-
-  // Ajouter le logo de l'entreprise à gauche en haut
-  doc.image("img/mid.png", 50, 50, { width: 100 });
-
-  // Ajouter le titre centré en haut
-  doc
-    .fontSize(20)
-    .text("Clinique Médicale", 0, 50, { align: "center", fontWeight: "bold" });
-
-  // Détails de l'entreprise centrés sous le titre
-  doc
-    .fontSize(10)
-    .text("MAH DOUSSOU COULIBLAY", 0, 100, { align: "center" })
-    .text("Moribabougou droit sur la Route de Koulikoro", { align: "center" })
-    .text("Téléphone : 76 45 31 72 - 44 41 53 79", { align: "center" });
-
-  // Ligne de séparation sous les détails de l'entreprise
-  doc.moveTo(50, 180).lineTo(545, 180).stroke();
-
-  // Informations du client sur la même ligne, juste sous la ligne de séparation
-  doc
-    .fontSize(12)
-    .text(`Facturé à :`, 50, 200)
-    .font("Helvetica-Bold")
-    .text(`${prenom} ${nom}`, 150, 200)
-    .font("Helvetica")
-    .text(`Âge : ${age}`, 300, 200)
-    .text(`Localité : ${localite}`, 450, 200);
-
-  // Ligne de séparation sous les informations du client
-  doc.moveTo(50, 230).lineTo(545, 230).stroke();
-
-  // Détails du service et date sur la même ligne
-  doc
-    .text(`Type de soin : ${type_soin}`, 50, 250)
-    .text(`Prix : ${prix} CFA`, 300, 250)
-    .text(`Date : ${new Date().toLocaleDateString()}`, 450, 250);
-
-  // Ajouter "Ordonnance" centré sous les détails du service
-  doc
-    .moveDown(2)
-    .fontSize(20)
-    .font("Helvetica-Bold")
-    .text("Ordonnance", 0, 300, { align: "center" });
-
-  doc.end();
-
-  if (typeof callback === "function") {
-    callback(null, facturePath);
-  } else {
-    console.error("Callback must be a function.");
-  }
-
-  console.log(
-    `La facture a été générée et sauvegardée dans le dossier Téléchargements : ${facturePath}`
-  );
-};
+let logoBase64 = getBase64Image(logoPath);
 
 app.use(express.static(path.join(__dirname, "public")));
 app.use(
@@ -1263,71 +1201,43 @@ app.post("/add", (req, res) => {
           type_soin,
           foundAdmin.code_admin, // Utilisez le code haché ici
         ];
-        db.query(addPatientQuery, patientValues, (err, result) => {
-          if (err) {
-            console.error("Erreur lors de l'ajout du patient :", err);
-            return res
-              .status(500)
-              .json({ error: "Erreur lors de l'ajout du patient" });
-          }
-
-          console.log("Patient ajouté avec succès :", result.insertId);
-
-          // Génération de la facture
-          const patientId = result.insertId;
-          const getPrixQuery = "SELECT prix FROM soins WHERE id_soin = ?";
-          db.query(getPrixQuery, [id_soin], (err, prixResults) => {
-            if (err || prixResults.length === 0) {
-              console.error("Erreur lors de la récupération du prix :", err);
-              return res
-                .status(500)
-                .json({ error: "Erreur lors de la récupération du prix" });
-            }
-
-            const prixFormate = parseFloat(prixResults[0].prix).toFixed(2);
-
-            // Chemin du fichier PDF à créer dans Téléchargements
-            const facturePath = path.join(
-              downloadsPath,
-              `${patientId}_facture.pdf`
+        db.query(addPatientQuery, patientValues, (insertErr) => {
+          if (insertErr)
+            return handleError(
+              insertErr,
+              res,
+              "Erreur lors de l'ajout du Patient."
             );
 
-            // Génération de la facture
-            createPDF(
+          console.log("Patient ajouté avec succès :");
+
+          // Génération de la facture
+          const getPrixQuery = "SELECT prix FROM soins WHERE id_soin = ?";
+          db.query(getPrixQuery, [id_soin], (insertErr, prixResults) => {
+            if (insertErr || prixResults.length === 0) {
+              console.error("Erreur lors de la récupération du prix :", err);
+              return handleError(
+                insertErr,
+                res,
+                "Erreur lors de la récupération du prix"
+              );
+            }
+
+            const prix = parseFloat(prixResults[0].prix).toFixed(2);
+
+            const date = new Date();
+            const formattedDate = date.getDate().toString().padStart(2, '0') + '/' + (date.getMonth() + 1).toString().padStart(2, '0') + '/' + date.getFullYear();
+
+            // Charger et remplacer le modèle HTML
+            generateInvoicHtml(
               nom,
               prenom,
-              type_soin,
-              prixFormate,
               age,
               localite,
-              (err) => {
-                if (err) {
-                  console.error("Erreur lors de la génération du PDF :", err);
-                  return res
-                    .status(500)
-                    .json({ error: "Erreur lors de la génération du PDF" });
-                }
-
-                console.log("Facture générée :", facturePath);
-
-                // Ajouter le reçu
-                const insertRecuQuery =
-                  "INSERT INTO recu (id_patient, type_soin, id_soin, montant) VALUES (?, ?, ?, ?)";
-                const recuValues = [patientId, type_soin, id_soin, prixFormate];
-                db.query(insertRecuQuery, recuValues, (err) => {
-                  if (err) {
-                    console.error("Erreur lors de l'ajout du reçu :", err);
-                    return res
-                      .status(500)
-                      .json({ error: "Erreur lors de l'ajout du reçu" });
-                  }
-
-                  res.json({
-                    success: "Patient et reçu ajoutés avec succès",
-                    facturePath,
-                  });
-                });
-              }
+              type_soin,
+              prix,
+              formattedDate,
+              res
             );
           });
         });
@@ -1335,6 +1245,54 @@ app.post("/add", (req, res) => {
     });
   });
 });
+
+function generateInvoicHtml(
+  nom,
+  prenom,
+  age,
+  localite,
+  type_soin,
+  prix,
+  formattedDate,
+  res
+) {
+  fs.readFile(
+    path.join(__dirname, "public", "facture.html"),
+    "utf8",
+    (err, templateHtml) => {
+      if (err)
+        return handleError(err, res, "Erreur de lecture du modèle de facture.");
+      const finalHtml = templateHtml
+        .replace("{{imgHtml}}", logoBase64)
+        .replace("{{nom}}", nom)
+        .replace("{{prenom}}", prenom)
+        .replace("{{age}}", age)
+        .replace("{{type_soin}}", type_soin)
+        .replace("{{localite}}", localite)
+        .replace("{{prix}}", prix)
+        .replace("{{date}}", formattedDate);
+
+      generateFactureFromHtml(finalHtml, res);
+    }
+  );
+}
+
+async function generateFactureFromHtml(htmlContent, res) {
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
+  await page.setContent(htmlContent);
+
+  const pdfPath = path.join(downloadsPath, `facture_${Date.now()}.pdf`);
+  await page.pdf({ path: pdfPath, format: "A4" });
+
+  await browser.close();
+  console.log("Facture générée avec succès !");
+
+  res.status(200).json({
+    message: "Vente effectuée avec succès et facture générée.",
+    pdfPath: pdfPath,
+  });
+}
 
 function getPatientsByPoste(poste, res) {
   const sql = `
@@ -2937,17 +2895,14 @@ app.post("/effectuer-vente", async (req, res) => {
                           "Erreur lors de la lecture du modèle HTML :",
                           err
                         );
-                        return res
-                          .status(500)
-                          .json({
-                            message: "Erreur de lecture du modèle de facture.",
-                          });
+                        return res.status(500).json({
+                          message: "Erreur de lecture du modèle de facture.",
+                        });
                       }
 
-                      const logoPath = path.resolve(__dirname, 'img', 'mid.png');
                       // Remplacement des variables dans le modèle HTML
                       const finalHtml = templateHtml
-                        .replace('{{imgHtml}}', logoPath)
+                        .replace("{{imgHtml}}", logoBase64)
                         .replace("{{itemsHtml}}", itemsHtml)
                         .replace("{{montant_total}}", montant_total);
 
@@ -3632,6 +3587,164 @@ app.get("/departements/search", (req, res) => {
     res.json(results.map((row) => ({ departement: row.departement })));
   });
 });
+
+// Routes pour le labo
+
+app.post("/add_labo", (req, res) => {
+  const {
+    nom,
+    prenom,
+    age,
+    sexe,
+    ethnie,
+    localite,
+    type_soin,
+    nature,
+    resultat,
+    renseignement,
+    date,
+    id_admin,
+  } = req.body;
+
+  // Étape 1 : Récupérer le prix depuis la table soins
+  const getPrixQuery = "SELECT prix FROM soins WHERE type_soin = ?";
+  db.query(getPrixQuery, [type_soin], (err, result) => {
+    if (err)
+      return handleError(
+        err,
+        res,
+        "Erreur lors de la récupération du montant."
+      );
+    if (result.length === 0)
+      return res.status(404).json({ error: "Type de soin introuvable." });
+
+    const montant = result[0].prix;
+
+    // Étape 2 : Insérer la consultation
+    const insertConsultationQuery = `
+      INSERT INTO laboratoire (nom, prenom, age, sexe, ethnie, localite,
+        type_soin, nature, resultat, renseignement, date, montant, id_admin)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+
+    const consultationValues = [
+      nom,
+      prenom,
+      age,
+      sexe,
+      ethnie,
+      localite,
+      type_soin,
+      nature,
+      resultat,
+      renseignement,
+      date,
+      montant,
+      id_admin,
+    ];
+
+    db.query(insertConsultationQuery, consultationValues, (insertErr) => {
+      if (insertErr)
+        return handleError(
+          insertErr,
+          res,
+          "Erreur lors de l'ajout de la consultation."
+        );
+
+      // Mise à jour du nombre de consultations pour le médecin
+      updateMedecinConsultations(id_admin);
+
+      // Générer les détails de la facture
+      const itemsHtml = `
+        <tr>
+          <td>${nature}</td>
+          <td>${resultat}</td>
+          <td>${renseignement}</td>
+        </tr>
+      `;
+
+      // Charger et remplacer le modèle HTML
+      generateInvoiceHtml(
+        itemsHtml,
+        nom,
+        prenom,
+        sexe,
+        age,
+        localite,
+        ethnie,
+        date,
+        res
+      );
+    });
+  });
+});
+
+function handleError(err, res, message) {
+  console.error(message, err);
+  res.status(500).json({ error: message });
+}
+
+function updateMedecinConsultations(id_admin) {
+  const updateMedecinQuery =
+    "UPDATE administration SET nombre_consultation = nombre_consultation + 1 WHERE id_admin = ?";
+  db.query(updateMedecinQuery, [id_admin], (updateErr) => {
+    if (updateErr)
+      console.error("Erreur lors de la mise à jour du médecin :", updateErr);
+  });
+}
+
+function generateInvoiceHtml(
+  itemsHtml,
+  nom,
+  prenom,
+  sexe,
+  age,
+  localite,
+  ethnie,
+  date,
+  res
+) {
+  fs.readFile(
+    path.join(__dirname, "public", "labo.html"),
+    "utf8",
+    (err, templateHtml) => {
+      if (err)
+        return handleError(err, res, "Erreur de lecture du modèle de facture.");
+      const finalHtml = templateHtml
+        .replace("{{imgHtml}}", logoBase64)
+        .replace("{{itemsHtml}}", itemsHtml)
+        .replace("{{nom}}", nom)
+        .replace("{{prenom}}", prenom)
+        .replace("{{sexe}}", sexe)
+        .replace("{{age}}", age)
+        .replace("{{localite}}", localite)
+        .replace("{{ethnie}}", ethnie);
+
+      generatePdfFromHtml(finalHtml, res);
+    }
+  );
+}
+
+function getBase64Image(filePath) {
+  const file = fs.readFileSync(filePath);
+  return `data:image/png;base64,${file.toString("base64")}`;
+}
+
+async function generatePdfFromHtml(htmlContent, res) {
+  const browser = await puppeteer.launch();
+  const page = await browser.newPage();
+  await page.setContent(htmlContent);
+
+  const pdfPath = path.join(downloadsPath, `examen_${Date.now()}.pdf`);
+  await page.pdf({ path: pdfPath, format: "A5" });
+
+  await browser.close();
+  console.log("Facture générée avec succès !");
+
+  res.status(200).json({
+    message: "Vente effectuée avec succès et facture générée.",
+    pdfPath: pdfPath,
+  });
+}
 
 // Servir les fichiers statiques de l'application React après les routes API
 //app.use(express.static(path.join(__dirname, 'build')));
