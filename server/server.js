@@ -11,7 +11,6 @@ const winston = require("winston");
 const puppeteer = require("puppeteer");
 const bcrypt = require("bcryptjs");
 require("dotenv").config();
-const easyinvoice = require("easyinvoice");
 
 // Obtient le chemin du dossier "Téléchargements" en fonction du système d'exploitation
 let downloadsPath =
@@ -1226,7 +1225,12 @@ app.post("/add", (req, res) => {
             const prix = parseFloat(prixResults[0].prix).toFixed(2);
 
             const date = new Date();
-            const formattedDate = date.getDate().toString().padStart(2, '0') + '/' + (date.getMonth() + 1).toString().padStart(2, '0') + '/' + date.getFullYear();
+            const formattedDate =
+              date.getDate().toString().padStart(2, "0") +
+              "/" +
+              (date.getMonth() + 1).toString().padStart(2, "0") +
+              "/" +
+              date.getFullYear();
 
             // Charger et remplacer le modèle HTML
             generateInvoicHtml(
@@ -3580,11 +3584,27 @@ app.get("/departements/search", (req, res) => {
 
   db.query(sql, [query], (err, results) => {
     if (err) {
-      console.error("Erreur lors de la récupération des dosages :", err);
+      console.error("Erreur lors de la récupération des departements :", err);
       return res.status(500).json({ error: "Erreur serveur" });
     }
     console.log("Résultats des dosages :", results); // Débogage
     res.json(results.map((row) => ({ departement: row.departement })));
+  });
+});
+
+app.get("/postes/search", (req, res) => {
+  const { name } = req.query;
+  const query = `%${name}%`;
+  const sql =
+    "SELECT DISTINCT poste FROM departements WHERE poste LIKE ?";
+
+  db.query(sql, [query], (err, results) => {
+    if (err) {
+      console.error("Erreur lors de la récupération des postes :", err);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    console.log("Résultats des dosages :", results); // Débogage
+    res.json(results.map((row) => ({ poste: row.poste })));
   });
 });
 
@@ -3596,13 +3616,13 @@ app.post("/add_labo", (req, res) => {
     prenom,
     age,
     sexe,
+    telephone,
     ethnie,
     localite,
     type_soin,
     nature,
     resultat,
     renseignement,
-    date,
     id_admin,
   } = req.body;
 
@@ -3622,8 +3642,8 @@ app.post("/add_labo", (req, res) => {
 
     // Étape 2 : Insérer la consultation
     const insertConsultationQuery = `
-      INSERT INTO laboratoire (nom, prenom, age, sexe, ethnie, localite,
-        type_soin, nature, resultat, renseignement, date, montant, id_admin)
+      INSERT INTO laboratoire (nom, prenom, age, sexe, telephone, ethnie, localite,
+        type_soin, nature, resultat, renseignement, montant, id_admin)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
     const consultationValues = [
@@ -3631,13 +3651,13 @@ app.post("/add_labo", (req, res) => {
       prenom,
       age,
       sexe,
+      telephone,
       ethnie,
       localite,
       type_soin,
       nature,
       resultat,
       renseignement,
-      date,
       montant,
       id_admin,
     ];
@@ -3671,7 +3691,6 @@ app.post("/add_labo", (req, res) => {
         age,
         localite,
         ethnie,
-        date,
         res
       );
     });
@@ -3700,7 +3719,6 @@ function generateInvoiceHtml(
   age,
   localite,
   ethnie,
-  date,
   res
 ) {
   fs.readFile(
@@ -3746,13 +3764,110 @@ async function generatePdfFromHtml(htmlContent, res) {
   });
 }
 
+function getLaboByDep(departement, res) {
+  const sql = `
+    SELECT 
+      l.*
+  FROM 
+  laboratoire l
+    JOIN 
+      administration a ON l.id_admin = a.id_admin
+    JOIN 
+      departements d ON a.id_departement = d.id_departement
+    WHERE 
+      d.departement IN (?)
+  `;
+
+  db.query(sql, [departement], (err, result) => {
+    if (err) {
+      console.error("Erreur SQL :", err);
+      return res.status(500).json({ message: "Erreur serveur" });
+    }
+
+    if (result.length === 0) {
+      return res
+        .status(404)
+        .json({ message: "Aucune consultation trouvée pour ce département" });
+    }
+
+    console.log("Résultats de la requête : ", result);
+    res.json(result);
+  });
+}
+
+app.get("/labo/arch", (req, res) => {
+  getLaboByDep("Service de laboratoire", res);
+});
+
+// Les recherches dans infirme
+
+app.get("/prenoms/search", (req, res) => {
+  const { name } = req.query;
+  const query = `%${name}%`;
+  const sql = "SELECT DISTINCT prenom FROM patient WHERE prenom LIKE ?";
+
+  db.query(sql, [query], (err, results) => {
+    if (err) {
+      console.error("Erreur lors de la récupération des prenoms :", err);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    console.log("Résultats des prenoms :", results); // Débogage
+    res.json(results.map((row) => ({ prenom: row.prenom })));
+  });
+});
+
+app.get("/noms/search", (req, res) => {
+  const { name } = req.query;
+  const query = `%${name}%`;
+  const sql = "SELECT DISTINCT nom FROM patient WHERE nom LIKE ?";
+
+  db.query(sql, [query], (err, results) => {
+    if (err) {
+      console.error("Erreur lors de la récupération des noms :", err);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    console.log("Résultats des noms :", results); // Débogage
+    res.json(results.map((row) => ({ nom: row.nom })));
+  });
+});
+
+app.get("/localites/search", (req, res) => {
+  const { name } = req.query;
+  const query = `%${name}%`;
+  const sql = "SELECT DISTINCT localite FROM patient WHERE localite LIKE ?";
+
+  db.query(sql, [query], (err, results) => {
+    if (err) {
+      console.error("Erreur lors de la récupération des localites :", err);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    console.log("Résultats des localites :", results); // Débogage
+    res.json(results.map((row) => ({ localite: row.localite })));
+  });
+});
+
+app.get("/ethnies/search", (req, res) => {
+  const { name } = req.query;
+  const query = `%${name}%`;
+  const sql = "SELECT DISTINCT ethnie FROM patient WHERE ethnie LIKE ?";
+
+  db.query(sql, [query], (err, results) => {
+    if (err) {
+      console.error("Erreur lors de la récupération des ethnies :", err);
+      return res.status(500).json({ error: "Erreur serveur" });
+    }
+    console.log("Résultats des ethnies :", results); // Débogage
+    res.json(results.map((row) => ({ ethnie: row.ethnie })));
+  });
+});
+
 // Servir les fichiers statiques de l'application React après les routes API
-//app.use(express.static(path.join(__dirname, 'build')));
+app.use(express.static(path.join(__dirname, 'build')));
 
 // Route pour gérer toutes les autres requêtes (frontend React)
-//app.get('*', (req, res) => {
-//  res.sendFile(path.join(__dirname, 'build', 'index.html'));
-//});
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'build', 'index.html'));
+});
 
 app.listen(port, () => {
   console.log(`Serveur en écoute sur le port ${port}`);

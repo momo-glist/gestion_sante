@@ -1,19 +1,19 @@
 {
-    "short_name": "CliniqueApp",
-    "name": "Application de gestion de clinique",
+    "short_name": "Clinique",
+    "name": "Application de clinique",
     "icons": [
       {
-        "src": "logo.png",
+        "src": "hopital.png",
         "sizes": "192x192",
         "type": "image/png"
       },
       {
-        "src": "logo.png",
+        "src": "hopital.png",
         "sizes": "192x192",
         "type": "image/png"
       },
       {
-        "src": "logo.png",
+        "src": "hopital.png",
         "sizes": "512x512",
         "type": "image/png"
       }
@@ -22,6 +22,6 @@
     "background_color": "#ffffff",
     "display": "standalone",
     "scope": "/",
-    "theme_color": "#0000ff"
+    "theme_color": "#0000"
   }
   

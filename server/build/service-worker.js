@@ -1,5 +1,5 @@
 // Nom du cache et version
-const CACHE_NAME = 'clinique-cache-v1';
+const CACHE_NAME = 'clinique-cache-v2';
 
 // Fichiers statiques à mettre en cache
 const STATIC_ASSETS = [
@@ -9,6 +9,7 @@ const STATIC_ASSETS = [
     '/manifest.json',
     '/static/js/bundle.js',
     '/static/css/main.css',
+    '/hopital.png',
     // Ajoutez ici d'autres fichiers statiques nécessaires
 ];
 
@@ -20,6 +21,7 @@ self.addEventListener('install', (event) => {
             return cache.addAll(STATIC_ASSETS);
         })
     );
+    self.skipWaiting();  // Force l'activation immédiate du service worker
     console.log('Service Worker installé et ressources mises en cache.');
 });
 
@@ -32,7 +34,7 @@ self.addEventListener('activate', (event) => {
                 keys.map((key) => {
                     if (key !== CACHE_NAME) {
                         console.log('Suppression du cache obsolète :', key);
-                        return caches.delete(key);
+                        return caches.delete(key);  // Supprime l'ancien cache
                     }
                 })
             )
